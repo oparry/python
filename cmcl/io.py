@@ -11,6 +11,7 @@ class mods_outputs:
     def __init__(self,root_dir):
         self.root_dir = root_dir
         self.data = {}
+        self.cad_profile_subtypes = []
         
     def _get_ncases(self,algorithm):
         algorithm_dir = "%s\%s" % (self.root_dir,algorithm)
@@ -45,19 +46,27 @@ class mods_outputs:
         self.data[data_key] = data
         
     def _read_subtype(self,algorithm,subtype):
-        fname = "%s\%s\%s_subtype_%s.csv" % (self.root_dir,algorithm,algorithm,subtype)
-        data = np.loadtxt(fname,skiprows=1,delimiter=',')
-        data_key = self._get_data_key(algorithm,subtype)
-        self.data[data_key] = data
+        subtype_fname    = "%s\%s\%s_subtype_%s.csv" % (self.root_dir,algorithm,algorithm,subtype)
+        subtype_data_key = self._get_data_key(algorithm,subtype)
+        subtype_data     = np.loadtxt(subtype_fname,skiprows=1,delimiter=',')
+        self.data[subtype_data_key] = subtype_data
+
+        if 'Pressure' in subtype: self.cad_profile_subtypes.append(subtype)
+        
+        if subtype in self.cad_profile_subtypes: # Also read CAD list for profiles
+            cad_fname    = "%s\Initial\cad_model.csv" % self.root_dir 
+            cad_data_key = self._get_data_key(algorithm,'cad')
+            cad_data     = np.loadtxt(cad_fname,skiprows=0,delimiter=',')
+            self.data[cad_data_key] = cad_data
         
     def get_subtype_data(self,algorithm,subtype,cases=None,nbest=None,nlast=None):
         subtype_data_key = self._get_data_key(algorithm,subtype)
         if subtype_data_key not in self.data:
             self._read_subtype(algorithm,subtype)
         all_data = self.data[subtype_data_key]
-        if all_data.ndim != 2: pdb.set_trace() # Not setup to handle data of this size
+        if all_data.ndim != 2: pdb.set_trace() # Not setup to handle data of this shape
         Nruns  = self._get_nruns(algorithm)
-        if all_data.shape[0] != Nruns: pdb.set_trace() # Not setup to handle data of this size
+        if all_data.shape[0] != Nruns: pdb.set_trace() # Not setup to handle data of this shape
         # Choose one or more runs
         if nbest:
             of_data_key = self._get_data_key(algorithm,'OF')
@@ -91,13 +100,28 @@ class mods_outputs:
                     if (ii==0):
                         data = case_prof
                     elif (ii==1):
+                        if (data.size != case_prof.size): pdb.set_trace()###
                         data = np.append([data],[case_prof],0)
                     else:
                         data = np.append(data,[case_prof],0)
         else:
             data = data_all_cases
             pdb.set_trace()####
-        return np.squeeze(data)
+        data = np.squeeze(data)
+        
+        if subtype in self.cad_profile_subtypes:
+            cad_data_key = self._get_data_key(algorithm,'cad')
+            cad_data     = self.data[cad_data_key]
+            # Fudge to handle one element length difference in CAD values, profiles
+            if data.size % cad_data.size != 0:
+                if data.size % (cad_data.size-1) != 0:
+                    print("Can't reconcile number of elements in CAD data, profile!")
+                    pdb.set_trace()
+                else:
+                    cad_data = cad_data[1:] - (cad_data[1]-cad_data[0])/2
+            return {'cad':cad_data, 'profile':data}
+        else:
+            return data
 #=================================================================================================#           
 
 #=================================================================================================#

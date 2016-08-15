@@ -32,16 +32,17 @@ class mods_outputs:
         of_data_key = self._get_data_key(algorithm,'OF')
         if of_data_key not in self.data:
             self._read_objective_function(algorithm)
-        return (self.data[of_data_key])['nrun'].size
+        return (self.data[of_data_key])['nRun'].size
         
     def _get_data_key(self,algorithm,subtype):
         return "%s_%s" % (algorithm,subtype)
         
     def _read_objective_function(self,algorithm):
         fname = "%s\%s\%s_OF.csv" % (self.root_dir,algorithm,algorithm)
-        dtypes = {'names': ('nrun','lsq_sum'), 'formats': ('i4','f8') }
-        nrun,lsq_sum = np.loadtxt(fname,skiprows=1,delimiter=',',usecols=(0,1),dtype=dtypes,unpack=True)
-        data     = {'nrun':nrun, 'lsq_sum':lsq_sum}
+        
+        data = np.genfromtxt(fname,names=True,delimiter=',',deletechars='',dtype=None)
+        data.dtype.names = [name.lstrip('subtype_') for name in data.dtype.names]
+        self.OF_type = data.dtype.names[1]
         data_key = self._get_data_key(algorithm,'OF')
         self.data[data_key] = data
         
@@ -58,7 +59,13 @@ class mods_outputs:
             cad_data_key = self._get_data_key(algorithm,'cad')
             cad_data     = np.loadtxt(cad_fname,skiprows=0,delimiter=',')
             self.data[cad_data_key] = cad_data
-        
+    
+    def get_OF_data(self,algorithm):
+        of_data_key = self._get_data_key(algorithm,'OF')
+        if of_data_key not in self.data:
+            self._read_objective_function(algorithm)
+        return self.data[of_data_key]
+    
     def get_subtype_data(self,algorithm,subtype,cases=None,nbest=None,nlast=None):
         subtype_data_key = self._get_data_key(algorithm,subtype)
         if subtype_data_key not in self.data:
@@ -73,7 +80,7 @@ class mods_outputs:
             if of_data_key not in self.data:
                 self._read_objective_function(algorithm)
             
-            best_idx = (self.data[of_data_key])['lsq_sum'].argsort()[:nbest]
+            best_idx = (self.data[of_data_key])[self.OF_type].argsort()[:nbest]
             data_all_cases = all_data[best_idx,:]
         elif nlast:
             data_all_cases = all_data[-nlast:,:]
@@ -127,7 +134,7 @@ class mods_outputs:
 #=================================================================================================#
 class mods_input:
     def __init__(self,root_dir):
-        print('Unfinished!')
+        raise Exception('Unfinished!')
         self.root_dir = root_dir
         self.fname    = root_dir + "\Working_dir\MoDS_inputs.xml"
         self.read()
